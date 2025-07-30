@@ -1,45 +1,44 @@
-import aiohttp
-import pandas as pd
+import logging
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from suggest import get_ai_trade_suggestions
+from config import TELEGRAM_BOT_TOKEN
 
-async def get_top_futures_pairs(min_volume_usdt=40_000_000):
-    url = "https://contract.mexc.com/api/v1/contract/ticker"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            data = await resp.json()
+logging.basicConfig(level=logging.INFO)
 
-    pairs = []
-    for item in data['data']:
-        vol = float(item['turnover'])  # 24h volume in USDT
-        symbol = item['symbol']
-        if vol >= min_volume_usdt:
-            pairs.append((symbol, vol))
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Welcome! Use /suggest to get AI trade signals.")
 
-    sorted_pairs = sorted(pairs, key=lambda x: x[1], reverse=True)
-    return [p[0] for p in sorted_pairs]
+async def suggest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Scanning MEXC Futures for best trades...")
 
-async def get_ai_trade_suggestions():
-    pairs = await get_top_futures_pairs()
-    suggestions = []
+    suggestions = await get_ai_trade_suggestions()
+    if not suggestions:
+        await update.message.reply_text("No good trade setups found.")
+        return
 
-    for symbol in pairs[:5]:  # Limit to top 5 pairs
-        direction = "Long" if hash(symbol) % 2 == 0 else "Short"
-        entry = 100  # dummy
-        sl = entry * 0.98 if direction == "Long" else entry * 1.02
-        tp = entry * 1.05 if direction == "Long" else entry * 0.95
-        rr = abs(tp - entry) / abs(entry - sl)
+    for s in suggestions:
+        msg = (
+            f"📊 *{s['pair']}*\n"
+            f"🔁 Direction: *{s['direction']}*\n"
+            f"🎯 Entry: `{s['entry']}`\n"
+            f"🛡 SL: `{s['sl']}`\n"
+            f"💰 TP: `{s['tp']}`\n"
+            f"⚖ RR: `{s['rr']}`\n"
+            f"📈 Leverage: {s['leverage']}\n"
+            f"🧠 Reason: _{s['reason']}_"
+        )
+        await update.message.reply_markdown(msg)
 
-        reason = "Reversal candle + RSI divergence + EMA trend support"
+def main():
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-        suggestions.append({
-            "pair": symbol,
-            "direction": direction,
-            "entry": round(entry, 3),
-            "sl": round(sl, 3),
-            "tp": round(tp, 3),
-            "rr": round(rr, 2),
-            "leverage": "Up to 5x",
-            "reason": reason
-        })
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("suggest", suggest))
 
-    return suggestions
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
+
 
