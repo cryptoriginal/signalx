@@ -1,5 +1,5 @@
 --prefer-binary
 pandas==2.1.4
+numpy==1.24.4
 python-telegram-bot==20.7
-requests
-numpy
+requests==2.31.0
