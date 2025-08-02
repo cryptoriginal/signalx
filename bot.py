@@ -1,35 +1,44 @@
-# bot.py
+from flask import Flask, request
+from telegram import Bot, Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from config import BOT_TOKEN
-from suggest import get_trade_suggestions
+import suggest  # Your AI logic file
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Welcome! Use /suggest to get MEXC Futures signals.")
+TOKEN = "YOUR_BOT_TOKEN"
+bot = Bot(token=TOKEN)
 
-async def suggest(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔍 Scanning for trade setups...")
-    suggestions = get_trade_suggestions()
-    for s in suggestions:
+app = Flask(__name__)
+application = Application.builder().token(TOKEN).build()
+
+# Define the /suggest command
+async def suggest_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    signals = suggest.get_trade_suggestions()
+    if not signals:
+        await update.message.reply_text("No good trade setups found.")
+        return
+    for signal in signals:
         msg = (
-            f"📈 *{s['symbol']}* — *{s['direction']}*\n"
-            f"🎯 Entry: `{s['entry']}`\n"
-            f"❌ SL: `{s['stop_loss']}`\n"
-            f"✅ TP: `{s['take_profit']}`\n"
-            f"📊 RR: `{s['rr']}`\n"
-            f"🧠 Reason: _{s['reason']}_"
+            f"📊 Symbol: {signal['symbol']}\n"
+            f"📈 Direction: {signal['direction']}\n"
+            f"💰 Entry: {signal['entry']}\n"
+            f"🛡 Stop Loss: {signal['stop_loss']}\n"
+            f"🎯 Take Profit: {signal['take_profit']}\n"
+            f"📊 Risk-Reward: {signal['rr']}\n"
+            f"🧠 Reason: {signal['reason']}"
         )
-        await update.message.reply_markdown_v2(msg)
+        await update.message.reply_text(msg)
 
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("suggest", suggest))
-    app.run_polling()
+application.add_handler(CommandHandler("suggest", suggest_handler))
 
-if __name__ == "__main__":
-    main()
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    application.update_queue.put(update)
+    return "ok"
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Bot is live!", 200
 
 
 
