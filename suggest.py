@@ -1,45 +1,48 @@
-import aiohttp
-import pandas as pd
+# suggest.py
 
-async def get_top_futures_pairs(min_volume_usdt=40_000_000):
-    url = "https://contract.mexc.com/api/v1/contract/ticker"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            data = await resp.json()
+import requests
+import random
+import math
 
+def fetch_high_volume_pairs(min_volume_usdt=40000000):
+    url = 'https://api.mexc.com/api/v3/ticker/24hr'
+    res = requests.get(url).json()
     pairs = []
-    for item in data['data']:
-        vol = float(item['turnover'])  # 24h volume in USDT
+    for item in res:
         symbol = item['symbol']
-        if vol >= min_volume_usdt:
-            pairs.append((symbol, vol))
+        vol = float(item.get('quoteVolume', 0))
+        if vol > min_volume_usdt and symbol.endswith('USDT'):
+            pairs.append(symbol)
+    return pairs
 
-    sorted_pairs = sorted(pairs, key=lambda x: x[1], reverse=True)
-    return [p[0] for p in sorted_pairs]
+def mock_ai_trade_decision(symbol):
+    # Simulate AI logic - replace with real model later
+    direction = random.choice(['Long', 'Short'])
+    entry = round(random.uniform(0.95, 1.05) * 100, 3)
+    rr = round(random.uniform(2.2, 3.5), 2)
+    sl = round(entry * (0.985 if direction == 'Long' else 1.015), 3)
+    tp = round(entry + (entry - sl) * rr if direction == 'Long' else entry - (sl - entry) * rr, 3)
 
-async def get_ai_trade_suggestions():
-    pairs = await get_top_futures_pairs()
+    reason = random.choice([
+        "Hammer candle at key support",
+        "Bearish engulfing + MACD cross",
+        "RSI + 3 EMA alignment",
+        "Breakout from consolidation zone",
+        "Reversal candle at Fib level"
+    ])
+    return {
+        "symbol": symbol,
+        "direction": direction,
+        "entry": entry,
+        "stop_loss": sl,
+        "take_profit": tp,
+        "rr": rr,
+        "reason": reason
+    }
+
+def get_trade_suggestions(limit=3):
     suggestions = []
-
-    for symbol in pairs[:5]:  # Limit to top 5 pairs
-        direction = "Long" if hash(symbol) % 2 == 0 else "Short"
-        entry = 100  # dummy
-        sl = entry * 0.98 if direction == "Long" else entry * 1.02
-        tp = entry * 1.05 if direction == "Long" else entry * 0.95
-        rr = abs(tp - entry) / abs(entry - sl)
-
-        reason = "Reversal candle + RSI divergence + EMA trend support"
-
-        suggestions.append({
-            "pair": symbol,
-            "direction": direction,
-            "entry": round(entry, 3),
-            "sl": round(sl, 3),
-            "tp": round(tp, 3),
-            "rr": round(rr, 2),
-            "leverage": "Up to 5x",
-            "reason": reason
-        })
-
-    return suggestions
+    pairs = fetch_high_volume_pairs()
+    random.shuffle(pairs)
+    for symbol in
 
