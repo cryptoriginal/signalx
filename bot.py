@@ -6,10 +6,10 @@ from config import BOT_TOKEN
 from suggest import get_trade_suggestions
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Welcome! Send /suggest to get MEXC Futures trade setups.")
+    await update.message.reply_text("🤖 Welcome! Use /suggest to get MEXC Futures signals.")
 
 async def suggest(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔍 Scanning market for setups...")
+    await update.message.reply_text("🔍 Scanning for trade setups...")
     suggestions = get_trade_suggestions()
     for s in suggestions:
         msg = (
@@ -20,7 +20,7 @@ async def suggest(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📊 RR: `{s['rr']}`\n"
             f"🧠 Reason: _{s['reason']}_"
         )
-        await update.message.reply_markdown(msg)
+        await update.message.reply_markdown_v2(msg)
 
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -28,7 +28,7 @@ def main():
     app.add_handler(CommandHandler("suggest", suggest))
     app.run_polling()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
 
 
