@@ -40,8 +40,8 @@ def calculate_rsi(series, period=14):
     return 100 - (100 / (1 + rs))
 
 def detect_signal(df):
-    df['EMA_7'] = df['close'].ewm(span=7).mean()
-    df['EMA_30'] = df['close'].ewm(span=30).mean()
+    df['EMA_9'] = df['close'].ewm(span=9).mean()
+    df['EMA_21'] = df['close'].ewm(span=21).mean()
     df['EMA_50'] = df['close'].ewm(span=50).mean()
     df['RSI'] = calculate_rsi(df['close'])
 
@@ -50,18 +50,18 @@ def detect_signal(df):
 
     signal = None
 
-    # Long setup
+    # Long signal
     if (
-        prev['EMA_7'] < prev['EMA_30'] and
-        latest['EMA_7'] > latest['EMA_30'] and
-        latest['RSI'] > 35 and
+        prev['EMA_9'] < prev['EMA_21'] and
+        latest['EMA_9'] > latest['EMA_21'] and
+        latest['RSI'] > 30 and
         latest['close'] > latest['EMA_50']
     ):
         entry = latest['close']
-        sl = df['low'][-30:].min()
-        tp = entry + (entry - sl) * 2.2
+        sl = df['low'][-25:].min()
+        tp = entry + (entry - sl) * 1.6
         rr = round((tp - entry) / (entry - sl), 2)
-        if rr >= 2.2:
+        if rr >= 1.5:
             signal = {
                 'symbol': '',
                 'direction': 'Long',
@@ -69,21 +69,21 @@ def detect_signal(df):
                 'stop_loss': round(sl, 4),
                 'take_profit': round(tp, 4),
                 'rr': rr,
-                'reason': '7 EMA crossed above 30 EMA, RSI > 35, price > 50 EMA'
+                'reason': 'EMA 9/21 crossover + RSI > 30 + price above EMA 50'
             }
 
-    # Short setup
+    # Short signal
     elif (
-        prev['EMA_7'] > prev['EMA_30'] and
-        latest['EMA_7'] < latest['EMA_30'] and
-        latest['RSI'] < 75 and
+        prev['EMA_9'] > prev['EMA_21'] and
+        latest['EMA_9'] < latest['EMA_21'] and
+        latest['RSI'] < 70 and
         latest['close'] < latest['EMA_50']
     ):
         entry = latest['close']
-        sl = df['high'][-30:].max()
-        tp = entry - (sl - entry) * 2.2
+        sl = df['high'][-25:].max()
+        tp = entry - (sl - entry) * 1.6
         rr = round((entry - tp) / (sl - entry), 2)
-        if rr >= 2.2:
+        if rr >= 1.5:
             signal = {
                 'symbol': '',
                 'direction': 'Short',
@@ -91,7 +91,7 @@ def detect_signal(df):
                 'stop_loss': round(sl, 4),
                 'take_profit': round(tp, 4),
                 'rr': rr,
-                'reason': '7 EMA crossed below 30 EMA, RSI < 75, price < 50 EMA'
+                'reason': 'EMA 9/21 crossover down + RSI < 70 + price below EMA 50'
             }
 
     return signal
@@ -110,5 +110,6 @@ def get_trade_suggestions(limit=3):
         if len(results) >= limit:
             break
     return results
+
 
 
