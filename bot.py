@@ -1,6 +1,7 @@
 import os
 import logging
 import requests
+import random
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
@@ -9,8 +10,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
-# --- Bot token ---
-TOKEN = os.getenv("8060081170:AAGL3GZsRBhyFUuEQf1PYP-8azEnr3v_2sQ")  # Store BOT_TOKEN in Render environment variables
+# --- Bot Token ---
+# You can either set BOT_TOKEN as an environment variable in Render, OR paste directly here for testing:
+TOKEN = os.getenv("BOT_TOKEN", "8060081170:AAGL3GZsRBhyFUuEQf1PYP-8azEnr3v_2sQ")  # Replace with your actual token from BotFather
 
 # --- Function to fetch MEXC Futures pairs ≥ 40M volume ---
 def get_high_volume_pairs():
@@ -28,20 +30,22 @@ def get_high_volume_pairs():
 
 # --- AI-like Trade Signal Logic ---
 def generate_trade_signal(symbol):
-    # In real case, replace this logic with TA/AI checks
-    import random
     direction = random.choice(["LONG", "SHORT"])
-    entry = round(random.uniform(0.9, 1.1), 4)  # Placeholder
+    entry = round(random.uniform(0.9, 1.1), 4)  # Placeholder example
     sl = round(entry * (0.98 if direction == "LONG" else 1.02), 4)
     tp = round(entry * (1.04 if direction == "LONG" else 0.96), 4)
-    reason = "Volume spike + bullish reversal candle" if direction == "LONG" else "Resistance rejection + bearish engulfing"
+    reason = (
+        "Volume spike + bullish reversal candle"
+        if direction == "LONG"
+        else "Resistance rejection + bearish engulfing"
+    )
     return {
         "symbol": symbol,
         "direction": direction,
         "entry": entry,
         "sl": sl,
         "tp": tp,
-        "reason": reason
+        "reason": reason,
     }
 
 # --- /suggest command handler ---
@@ -54,17 +58,22 @@ async def suggest(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply = "📊 **Scalping Trade Suggestions**\n\n"
     for symbol in pairs[:3]:  # Limit to top 3
         trade = generate_trade_signal(symbol)
-        reply += f"💎 {trade['symbol']}\n" \
-                 f"📈 Direction: {trade['direction']}\n" \
-                 f"🎯 Entry: {trade['entry']}\n" \
-                 f"📉 SL: {trade['sl']}\n" \
-                 f"🚀 TP: {trade['tp']}\n" \
-                 f"📌 Reason: {trade['reason']}\n\n"
+        reply += (
+            f"💎 {trade['symbol']}\n"
+            f"📈 Direction: {trade['direction']}\n"
+            f"🎯 Entry: {trade['entry']}\n"
+            f"📉 SL: {trade['sl']}\n"
+            f"🚀 TP: {trade['tp']}\n"
+            f"📌 Reason: {trade['reason']}\n\n"
+        )
 
     await update.message.reply_text(reply, parse_mode="Markdown")
 
 # --- Main ---
 if __name__ == "__main__":
+    if TOKEN == "" or TOKEN.startswith("PASTE"):
+        raise ValueError("❌ Please set your Telegram BOT_TOKEN before running the bot!")
+
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("suggest", suggest))
     app.run_polling()
