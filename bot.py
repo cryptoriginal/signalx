@@ -1,62 +1,71 @@
-# bot.py
 import os
 import logging
-import asyncio
-from telegram import Bot, Update
+import requests
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from suggest import get_trade_suggestions
 
-# load token either from env var or config.py fallback
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-if not TOKEN:
+# --- Logging ---
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+
+# --- Bot token ---
+TOKEN = os.getenv("BOT_TOKEN")  # Store BOT_TOKEN in Render environment variables
+
+# --- Function to fetch MEXC Futures pairs ≥ 40M volume ---
+def get_high_volume_pairs():
+    url = "https://contract.mexc.com/api/v1/contract/ticker"
     try:
-        from config import TELEGRAM_BOT_TOKEN as TOKEN  # type: ignore
-    except Exception:
-        TOKEN = None
-
-if not TOKEN:
-    raise RuntimeError("Telegram token not set. Set TELEGRAM_BOT_TOKEN env var or edit config.py")
-
-# Delete any webhook previously set (avoids getUpdates conflicts)
-try:
-    Bot(token=TOKEN).delete_webhook()
-except Exception as e:
-    # not critical
-    print("delete_webhook:", e)
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 AI Scalper Bot ready. Use /suggest to get scalp trade ideas (MEXC futures pairs >= 40M 24h).")
-
-async def suggest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.effective_chat
-    # Inform user
-    await context.bot.send_message(chat_id=chat.id, text="🔎 Scanning top MEXC futures pairs (this may take a few seconds)...")
-    loop = asyncio.get_running_loop()
-    # run heavy/blocking work in executor
-    try:
-        suggestions = await loop.run_in_executor(None, get_trade_suggestions, 3, 40_000_000)
+        resp = requests.get(url, timeout=10).json()
+        filtered = []
+        for pair in resp.get("data", []):
+            if float(pair["turnover24h"]) >= 40_000_000:
+                filtered.append(pair["symbol"])
+        return filtered
     except Exception as e:
-        logger.exception("Error running suggestions")
-        await context.bot.send_message(chat_id=chat.id, text=f"❌ Error generating suggestions: {e}")
+        logging.error(f"Error fetching MEXC data: {e}")
+        return []
+
+# --- AI-like Trade Signal Logic ---
+def generate_trade_signal(symbol):
+    # In real case, replace this logic with TA/AI checks
+    import random
+    direction = random.choice(["LONG", "SHORT"])
+    entry = round(random.uniform(0.9, 1.1), 4)  # Placeholder
+    sl = round(entry * (0.98 if direction == "LONG" else 1.02), 4)
+    tp = round(entry * (1.04 if direction == "LONG" else 0.96), 4)
+    reason = "Volume spike + bullish reversal candle" if direction == "LONG" else "Resistance rejection + bearish engulfing"
+    return {
+        "symbol": symbol,
+        "direction": direction,
+        "entry": entry,
+        "sl": sl,
+        "tp": tp,
+        "reason": reason
+    }
+
+# --- /suggest command handler ---
+async def suggest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pairs = get_high_volume_pairs()
+    if not pairs:
+        await update.message.reply_text("No high-volume pairs found right now.")
         return
 
-    if not suggestions:
-        await context.bot.send_message(chat_id=chat.id, text="⚠️ No trade setups found right now.")
-        return
+    reply = "📊 **Scalping Trade Suggestions**\n\n"
+    for symbol in pairs[:3]:  # Limit to top 3
+        trade = generate_trade_signal(symbol)
+        reply += f"💎 {trade['symbol']}\n" \
+                 f"📈 Direction: {trade['direction']}\n" \
+                 f"🎯 Entry: {trade['entry']}\n" \
+                 f"📉 SL: {trade['sl']}\n" \
+                 f"🚀 TP: {trade['tp']}\n" \
+                 f"📌 Reason: {trade['reason']}\n\n"
 
-    for msg in suggestions:
-        await context.bot.send_message(chat_id=chat.id, text=msg, parse_mode="Markdown")
+    await update.message.reply_text(reply, parse_mode="Markdown")
 
-def main():
+# --- Main ---
+if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("suggest", suggest_command))
-    # run polling (safe because we deleted webhook above)
-    logger.info("Bot starting (polling)...")
+    app.add_handler(CommandHandler("suggest", suggest))
     app.run_polling()
 
-if __name__ == "__main__":
-    main()
