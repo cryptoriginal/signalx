@@ -5,33 +5,34 @@ import random
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# --- Logging ---
+# --- Logging setup ---
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
+    level=logging.INFO
 )
 
-# --- Bot Token ---
-# You can either set BOT_TOKEN as an environment variable in Render, OR paste directly here for testing:
-TOKEN = os.getenv("BOT_TOKEN", "8060081170:AAGL3GZsRBhyFUuEQf1PYP-8azEnr3v_2sQ")  # Replace with your actual token from BotFather
+# --- Bot token ---
+TOKEN = os.getenv("BOT_TOKEN")  # ✅ Store BOT_TOKEN in Render Environment Variables
 
-# --- Function to fetch MEXC Futures pairs ≥ 40M volume ---
+# --- Get high volume MEXC Futures pairs ---
 def get_high_volume_pairs():
     url = "https://contract.mexc.com/api/v1/contract/ticker"
     try:
         resp = requests.get(url, timeout=10).json()
-        filtered = []
-        for pair in resp.get("data", []):
-            if float(pair["turnover24h"]) >= 40_000_000:
-                filtered.append(pair["symbol"])
+        filtered = [
+            pair["symbol"]
+            for pair in resp.get("data", [])
+            if float(pair["turnover24h"]) >= 40_000_000
+        ]
         return filtered
     except Exception as e:
         logging.error(f"Error fetching MEXC data: {e}")
         return []
 
-# --- AI-like Trade Signal Logic ---
+# --- AI-like trade suggestion generator ---
 def generate_trade_signal(symbol):
     direction = random.choice(["LONG", "SHORT"])
-    entry = round(random.uniform(0.9, 1.1), 4)  # Placeholder example
+    entry = round(random.uniform(0.9, 1.1), 4)  # Placeholder price
     sl = round(entry * (0.98 if direction == "LONG" else 1.02), 4)
     tp = round(entry * (1.04 if direction == "LONG" else 0.96), 4)
     reason = (
@@ -45,7 +46,7 @@ def generate_trade_signal(symbol):
         "entry": entry,
         "sl": sl,
         "tp": tp,
-        "reason": reason,
+        "reason": reason
     }
 
 # --- /suggest command handler ---
@@ -56,7 +57,7 @@ async def suggest(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     reply = "📊 **Scalping Trade Suggestions**\n\n"
-    for symbol in pairs[:3]:  # Limit to top 3
+    for symbol in pairs[:3]:
         trade = generate_trade_signal(symbol)
         reply += (
             f"💎 {trade['symbol']}\n"
@@ -69,12 +70,15 @@ async def suggest(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(reply, parse_mode="Markdown")
 
-# --- Main ---
+# --- Main bot runner ---
 if __name__ == "__main__":
-    if TOKEN == "" or TOKEN.startswith("PASTE"):
-        raise ValueError("❌ Please set your Telegram BOT_TOKEN before running the bot!")
+    if not TOKEN:
+        logging.error("BOT_TOKEN is not set in environment variables!")
+        exit(1)
 
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("suggest", suggest))
+    app.run_polling()
+
     app.run_polling()
 
