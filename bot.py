@@ -12,7 +12,7 @@ logging.basicConfig(
 )
 
 # --- Bot token ---
-TOKEN = os.getenv("BOT_TOKEN")  # ✅ Store BOT_TOKEN in Render Environment Variables
+TOKEN = os.getenv("8060081170:AAGL3GZsRBhyFUuEQf1PYP-8azEnr3v_2sQ")  # ✅ Store BOT_TOKEN in Render Environment Variables
 
 # --- Get high volume MEXC Futures pairs ---
 def get_high_volume_pairs():
